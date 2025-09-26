@@ -35,6 +35,8 @@ static BLS12_DST: &str = "BLS12381G1_XMD:SHA-256_SSWU_RO";
 // Chain ID 31337: anvil
 static HEX_CHAINID: &str = "0x0000000000000000000000000000000000000000000000000000000000007a69";
 
+mod hash_to_curve;
+
 fn hex_ser_compressed(p: &impl PointSerializeCompressed) -> String {
     hex::encode(p.ser_compressed().unwrap())
 }
@@ -132,8 +134,7 @@ fn dcipher_bn254_test_case(app: &str, msg: &str, sk: ark_bn254::Fr) -> TestCase 
 fn bls12_test_case(msg: &str, sk: ark_bls12_381::Fr) -> TestCase {
     let dst = BLS12_DST;
     let p = (ark_bls12_381::G2Affine::generator() * sk).into_affine();
-    let m =
-        Bls12_381::hash_to_g1_custom::<sha2::Sha256>(msg.as_bytes(), dst.as_bytes()).into_affine();
+    let m = hash_to_curve::bls12_381_hash_to_g1(msg.as_bytes(), dst);
     let s = (m * sk).into_affine();
 
     assert!(

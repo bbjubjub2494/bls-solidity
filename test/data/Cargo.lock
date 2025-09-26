@@ -603,6 +603,7 @@ dependencies = [
  "ark-bn254",
  "ark-ec",
  "ark-ff",
+ "ark-poly",
  "digest",
  "hex",
  "serde",
