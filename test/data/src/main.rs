@@ -47,13 +47,14 @@ fn hex_ser_uncompressed(p: &impl PointSerializeUncompressed) -> String {
 
 fn hex_deser_compressed<T: PointDeserializeCompressed>(s: &str) -> T {
     let bytes = hex::decode(s).unwrap();
-    T::deser_compressed(&mut &bytes[..]).unwrap()
+    T::deser_compressed(&bytes[..]).unwrap()
 }
 
 fn hex_deser_uncompressed<T: PointDeserializeUncompressed>(s: &str) -> T {
     let bytes = hex::decode(s).unwrap();
-    T::deser_uncompressed(&mut &bytes[..]).unwrap()
+    T::deser_uncompressed(&bytes[..]).unwrap()
 }
+
 
 fn main() -> anyhow::Result<()> {
     let msg = "hello";
