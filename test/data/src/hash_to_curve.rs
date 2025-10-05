@@ -4,14 +4,14 @@ use ark_ff::{
     field_hashers::{DefaultFieldHasher, HashToField},
 };
 
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::{AffineRepr, AdditiveGroup, CurveGroup};
 
 use ark_bls12_381::{Config, Fq, G1Affine};
 
 pub fn bls12_381_hash_to_g1(msg: &[u8], dst: &str) -> G1Affine {
     use Fq;
     let htf = <DefaultFieldHasher<sha2::Sha256, 128> as HashToField<Fq>>::new(dst.as_bytes());
-    let u = htf.hash_to_field(msg, 2);
+    let u = htf.hash_to_field::<2>(msg);
     let (x, y) = map_to_curve_simple_swu(u[0]);
     let (x, y) = iso_map_swu(x, y);
     let p0 = G1Affine::new_unchecked(x, y);
