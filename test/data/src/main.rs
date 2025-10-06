@@ -135,7 +135,8 @@ fn dcipher_bn254_test_case(app: &str, msg: &str, sk: ark_bn254::Fr) -> TestCase 
 fn bls12_test_case(msg: &str, sk: ark_bls12_381::Fr) -> TestCase {
     let dst = BLS12_DST;
     let p = (ark_bls12_381::G2Affine::generator() * sk).into_affine();
-    let m = hash_to_curve::bls12_381_hash_to_g1(msg.as_bytes(), dst);
+    let mut hints = hinting::HintCollector::new();
+    let m = hash_to_curve::bls12_381_hash_to_g1(msg.as_bytes(), dst, &mut hints).unwrap();
     let s = (m * sk).into_affine();
 
     assert!(

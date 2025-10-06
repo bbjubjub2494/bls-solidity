@@ -1,4 +1,3 @@
-
 use ark_ff::{
     Field, MontFp, Zero,
     field_hashers::{DefaultFieldHasher, HashToField},
@@ -8,24 +7,30 @@ use ark_ec::{AffineRepr, AdditiveGroup, CurveGroup};
 
 use ark_bls12_381::{Config, Fq, G1Affine};
 
-pub fn bls12_381_hash_to_g1(msg: &[u8], dst: &str) -> G1Affine {
+use hinting::Transcript;
+
+pub fn bls12_381_hash_to_g1<T>(msg: &[u8], dst: &str, hints: &mut T) -> Result<G1Affine, T::Error>
+where T: Transcript<Fq>
+{
     use Fq;
     let htf = <DefaultFieldHasher<sha2::Sha256, 128> as HashToField<Fq>>::new(dst.as_bytes());
     let u = htf.hash_to_field::<2>(msg);
-    let (x, y) = map_to_curve_simple_swu(u[0]);
+    let (x, y) = map_to_curve_simple_swu(u[0], hints)?;
     let (x, y) = iso_map_swu(x, y);
     let p0 = G1Affine::new_unchecked(x, y);
-    let (x, y) = map_to_curve_simple_swu(u[1]);
+    let (x, y) = map_to_curve_simple_swu(u[1], hints)?;
     let (x, y) = iso_map_swu(x, y);
     let p1 = G1Affine::new_unchecked(x, y);
-    (p0 + p1).into_affine().clear_cofactor()
+    Ok((p0 + p1).into_affine().clear_cofactor())
 }
 
 static Z: Fq = MontFp!("11");
 static A: Fq = MontFp!("12190336318893619529228877361869031420615612348429846051986726275283378313155663745811710833465465981901188123677");
 static B: Fq = MontFp!("2906670324641927570491258158026293881577086121416628140204402091718288198173574630967936031029026176254968826637280");
 
-fn map_to_curve_simple_swu(u: Fq) -> (Fq, Fq) {
+fn map_to_curve_simple_swu<T>(u: Fq, hints: &mut T) -> Result<(Fq, Fq), T::Error>
+where T: Transcript<Fq>
+{
     // Simplified SWU map for BLS12-381 G1
     // See https://www.rfc-editor.org/rfc/rfc9380.html#straightline-sswu
     // 1.  tv1 = u^2
@@ -63,7 +68,7 @@ fn map_to_curve_simple_swu(u: Fq) -> (Fq, Fq) {
     // 17.   x = tv1 * tv3
     let mut x = tv1 * tv3;
     // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
-    let (is_gx1_square, y1) = sqrt_ratio(tv2, tv6);
+    let (is_gx1_square, y1) = hints.sqrt_ratio(tv2, tv6, Z)?;
     // 19.   y = tv1 * u
     let mut y = tv1 * u;
     // 20.   y = y * y1
@@ -79,7 +84,7 @@ fn map_to_curve_simple_swu(u: Fq) -> (Fq, Fq) {
     // 25.   x = x / tv4
     x /= tv4;
     // 26. return (x, y)
-    (x, y)
+    Ok((x, y))
 }
 
 /// https://www.rfc-editor.org/rfc/rfc9380.html#name-the-sgn0-function
@@ -87,16 +92,6 @@ fn sgn0(x: Fq) -> bool {
     use ark_ff::BigInteger;
     use ark_ff::PrimeField;
     x.into_bigint().is_odd()
-}
-
-fn sqrt_ratio(u: Fq, v: Fq) -> (bool, Fq) {
-    // simple naive implementation, not based on the optimized one from the RFC
-    if let Some(root) = (u / v).sqrt() {
-        (true, root)
-    } else {
-        let root = (u * Z / v).sqrt().expect("assuming Z is a non-residue");
-        (false, root)
-    }
 }
 
 /// copypasted from arkworks
