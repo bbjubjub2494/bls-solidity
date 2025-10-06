@@ -10,6 +10,7 @@ abstract contract Common is TestBase {
         string application;
         uint64 drand_round_number; // Optional: 0 if n/a
         string dst;
+        string[] hints;
         string m_expected;
         string message;
         string pk;

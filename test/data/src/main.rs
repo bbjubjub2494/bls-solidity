@@ -27,6 +27,7 @@ struct TestCase {
     sig_compressed: String,
     drand_round_number: u64, // Optional: 0 if n/a
     application: String,
+    hints: Vec<String>, // Optional: empty if n/a
 }
 
 static BN254_DST: &str = "BN254G1_XMD:KECCAK-256_SVDW_RO";
@@ -35,7 +36,7 @@ static BLS12_DST: &str = "BLS12381G1_XMD:SHA-256_SSWU_RO";
 // Chain ID 31337: anvil
 static HEX_CHAINID: &str = "0x0000000000000000000000000000000000000000000000000000000000007a69";
 
-mod hash_to_curve;
+// mod hash_to_curve; // FIXME
 
 fn hex_ser_compressed(p: &impl PointSerializeCompressed) -> String {
     hex::encode(p.ser_compressed().unwrap())
@@ -107,14 +108,14 @@ fn dcipher_bls12_test_case(app: &str, msg: &str, sk: ark_bls12_381::Fr) -> TestC
         sig_compressed: hex_ser_compressed(&s),
         drand_round_number: 0,
         application: app.to_owned(),
+        hints: vec![],
     }
 }
 
 fn dcipher_bn254_test_case(app: &str, msg: &str, sk: ark_bn254::Fr) -> TestCase {
     let dst = format!("{app}-{BN254_DST}_{HEX_CHAINID}_");
     let p = (ark_bn254::G2Affine::generator() * sk).into_affine();
-    let m =
-        Bn254::hash_to_g1_custom::<sha3::Keccak256>(msg.as_bytes(), dst.as_bytes()).into_affine();
+    let (m, hints) = hash_to_curve::hash_to_g1_custom_with_hints::<sha3::Keccak256>(msg.as_bytes(), dst.as_bytes());
     let s = (m * sk).into_affine();
 
     assert!(Bn254::multi_pairing(&[m, s], &[p, -ark_bn254::G2Affine::generator()]).is_zero());
@@ -129,14 +130,14 @@ fn dcipher_bn254_test_case(app: &str, msg: &str, sk: ark_bn254::Fr) -> TestCase 
         sig_compressed: "not applicable".to_owned(),
         drand_round_number: 0,
         application: app.to_owned(),
+        hints: hints.iter().map(|h| hex::encode(hash_to_curve::ser_hint(h))).collect(),
     }
 }
 
 fn bls12_test_case(msg: &str, sk: ark_bls12_381::Fr) -> TestCase {
     let dst = BLS12_DST;
     let p = (ark_bls12_381::G2Affine::generator() * sk).into_affine();
-    let mut hints = hinting::HintCollector::new();
-    let m = hash_to_curve::bls12_381_hash_to_g1(msg.as_bytes(), dst, &mut hints).unwrap();
+    let m = Bls12_381::hash_to_g1_custom::<sha2::Sha256>(msg.as_bytes(), dst.as_bytes()).into_affine();
     let s = (m * sk).into_affine();
 
     assert!(
@@ -153,14 +154,14 @@ fn bls12_test_case(msg: &str, sk: ark_bls12_381::Fr) -> TestCase {
         sig_compressed: hex_ser_compressed(&s),
         drand_round_number: 0,
         application: "".to_owned(),
+        hints: vec![],
     }
 }
 
 fn bn254_test_case(msg: &str, sk: ark_bn254::Fr) -> TestCase {
     let dst = BN254_DST;
     let p = (ark_bn254::G2Affine::generator() * sk).into_affine();
-    let m =
-        Bn254::hash_to_g1_custom::<sha3::Keccak256>(msg.as_bytes(), dst.as_bytes()).into_affine();
+    let (m, hints) = hash_to_curve::hash_to_g1_custom_with_hints::<sha3::Keccak256>(msg.as_bytes(), dst.as_bytes());
     let s = (m * sk).into_affine();
 
     assert!(Bn254::multi_pairing(&[m, s], &[p, -ark_bn254::G2Affine::generator()]).is_zero());
@@ -175,6 +176,7 @@ fn bn254_test_case(msg: &str, sk: ark_bn254::Fr) -> TestCase {
         sig_compressed: "not applicable".to_owned(),
         drand_round_number: 0,
         application: "".to_owned(),
+        hints: hints.iter().map(|h| hex::encode(hash_to_curve::ser_hint(h))).collect(),
     }
 }
 
@@ -201,6 +203,7 @@ fn quicknet_test_case(sig: &str, round: u64) -> TestCase {
         sig_compressed: sig.to_owned(),
         drand_round_number: round,
         application: "".to_owned(),
+        hints: vec![],
     }
 }
 
@@ -211,7 +214,7 @@ fn evmnet_test_case(sig: &str, round: u64) -> TestCase {
     let p = hex_deser_uncompressed(pk);
     let s = hex_deser_uncompressed(sig);
     let msg = &sha3::Keccak256::digest(round.to_be_bytes());
-    let m = Bn254::hash_to_g1_custom::<sha3::Keccak256>(msg, dst.as_bytes()).into_affine();
+    let (m, hints) = hash_to_curve::hash_to_g1_custom_with_hints::<sha3::Keccak256>(msg, dst.as_bytes());
 
     assert!(Bn254::multi_pairing(&[m, s], &[p, -ark_bn254::G2Affine::generator()]).is_zero());
 
@@ -225,5 +228,6 @@ fn evmnet_test_case(sig: &str, round: u64) -> TestCase {
         sig_compressed: "not applicable".to_owned(),
         drand_round_number: round,
         application: "".to_owned(),
+        hints: hints.iter().map(|h| hex::encode(hash_to_curve::ser_hint(h))).collect(),
     }
 }
