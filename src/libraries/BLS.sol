@@ -27,6 +27,45 @@ library BLS {
         uint256 y;
     }
 
+    struct TranscriptIterator {
+        uint256[] hints;
+        uint256 position;
+    }
+
+    uint256 constant KNOWN_QNR = 5; // consistent with `hinting` in Rust.
+
+    function nextHint(TranscriptIterator memory t) internal pure returns (uint256) {
+        return t.hints[t.position++];
+    }
+
+    function sqrtHint(TranscriptIterator memory t, uint256 x) internal pure returns (uint256, bool) {
+        uint256 h = nextHint(t);
+        uint256 h2 = mulmod(h, h, N);
+        if (h2 == x) {
+            return (h, true);
+        } else if (h2 == mulmod(x, KNOWN_QNR, N)) {
+            return (0, false);
+        }
+        revert("Invalid hint");
+    }
+
+    function sqrt1outOf2Hint(TranscriptIterator memory t, uint256 x1, uint256 x2)
+        internal
+        pure
+        returns (uint256, uint256, bool)
+    {
+        uint256 h = nextHint(t);
+        uint256 h2 = mulmod(h, h, N);
+        if (h2 == x1) {
+            return (x1, h, true);
+        } else if (h2 == x2) {
+            return (x2, h, true);
+        } else if (h2 == mulmod(x1, x2, N)) {
+            return (0, 0, false);
+        }
+        revert("Invalid hint");
+    }
+
     // Field order
     // p is a prime over which we form a basic field
     // go-ethereum/crypto/bn256/cloudflare/constants.go
@@ -411,6 +450,15 @@ library BLS {
         return m;
     }
 
+    function fqUnmarshal(bytes memory m) internal pure returns (uint256) {
+        require(m.length == 32, "Invalid Fq bytes length");
+        uint256 x;
+        assembly {
+            x := mload(add(m, 0x20))
+        }
+        return x;
+    }
+
     /// @notice sqrt(xx) mod N
     /// @param xx Input
     function sqrt(uint256 xx) internal pure returns (uint256 x, bool hasRoot) {
@@ -630,6 +678,72 @@ library BLS {
         }
         if (!success) {
             revert ModExpFailed(u, C5, N);
+        }
+    }
+
+    /// @notice Hash to BN254 G1
+    /// @param domain Domain separation tag
+    /// @param message Message to hash
+    /// @return point in G1
+    function hashToPointFromHints(bytes memory domain, bytes memory message, TranscriptIterator memory t)
+        internal
+        view
+        returns (PointG1 memory point)
+    {
+        uint256[2] memory u = hashToField(domain, message);
+        uint256[2] memory p0 = mapToPointFromHints(u[0], t);
+        uint256[2] memory p1 = mapToPointFromHints(u[1], t);
+        uint256[4] memory bnAddInput;
+        bnAddInput[0] = p0[0];
+        bnAddInput[1] = p0[1];
+        bnAddInput[2] = p1[0];
+        bnAddInput[3] = p1[1];
+        bool success;
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            success := staticcall(gas(), ECADD_ADDRESS, bnAddInput, 128, p0, 64)
+        }
+        if (!success) revert BNAddFailed(bnAddInput);
+        point = PointG1({x: p0[0], y: p0[1]});
+        return point;
+    }
+
+    /// @notice Map field element to E using SvdW
+    /// @param u Field element to map
+    /// @return p Point on curve
+    function mapToPointFromHints(uint256 u, TranscriptIterator memory t) internal view returns (uint256[2] memory p) {
+        if (u >= N) revert InvalidFieldElement(u);
+
+        uint256 tv1 = mulmod(mulmod(u, u, N), C1, N);
+        uint256 tv2 = addmod(1, tv1, N);
+        tv1 = addmod(1, N - tv1, N);
+        uint256 tv3 = inverse(mulmod(tv1, tv2, N));
+        uint256 tv5 = mulmod(mulmod(mulmod(u, tv1, N), tv3, N), C3, N);
+        uint256 x1 = addmod(C2, N - tv5, N);
+        uint256 x2 = addmod(C2, tv5, N);
+        uint256 tv7 = mulmod(tv2, tv2, N);
+        uint256 tv8 = mulmod(tv7, tv3, N);
+        uint256 x3 = addmod(Z, mulmod(C4, mulmod(tv8, tv8, N), N), N);
+
+        bool hasRoot;
+        uint256 gx;
+
+        gx = g(x1);
+        (p[1], hasRoot) = sqrtHint(t, gx);
+        if (hasRoot) {
+            p[0] = x1;
+        } else {
+            uint256 gx2 = g(x2);
+            (gx, p[1], hasRoot) = sqrt1outOf2Hint(t, gx2, g(x3));
+            if (!hasRoot) revert MapToPointFailed(gx);
+            if (gx == gx2) {
+                p[0] = x2;
+            } else {
+                p[0] = x3;
+            }
+        }
+        if (sgn0(u) != sgn0(p[1])) {
+            p[1] = N - p[1];
         }
     }
 }

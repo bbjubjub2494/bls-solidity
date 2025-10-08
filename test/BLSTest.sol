@@ -57,6 +57,50 @@ contract BLSTest is Test, Common {
         assert(callSuccess);
     }
 
+    function table_hints(TestCase memory tc) public {
+        if (!eq(tc.scheme, "BN254")) {
+            return; // Skip row but not whole table
+        }
+        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
+        BLS.PointG1 memory sig = BLS.g1Unmarshal(parseHex(tc.sig));
+        BLS.PointG1 memory m_expected = BLS.g1Unmarshal(parseHex(tc.m_expected));
+
+        uint256[] memory hints = new uint256[](tc.hints.length);
+        for (uint256 i = 0; i < tc.hints.length; i++) {
+            hints[i] = BLS.fqUnmarshal(parseHex(tc.hints[i]));
+        }
+        BLS.TranscriptIterator memory t = BLS.TranscriptIterator({hints: hints, position: 0});
+
+        BLS.PointG1 memory m = BLS.hashToPointFromHints(bytes(tc.dst), parseHex(tc.message), t);
+        assert(m.x == m_expected.x);
+        assert(m.y == m_expected.y);
+
+        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
+        assert(pairingSuccess);
+        assert(callSuccess);
+    }
+
+    function test_snapshot_verify_uncompressed_hints() public {
+        // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
+        TestCase memory tc = fixture_tc()[4];
+        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
+        bytes memory sigBytes = parseHex(tc.sig);
+        bytes memory msg = parseHex(tc.message);
+
+        uint256[] memory hints = new uint256[](tc.hints.length);
+        for (uint256 i = 0; i < tc.hints.length; i++) {
+            hints[i] = BLS.fqUnmarshal(parseHex(tc.hints[i]));
+        }
+        BLS.TranscriptIterator memory t = BLS.TranscriptIterator({hints: hints, position: 0});
+
+        vm.startSnapshotGas("BLS", "verify_uncompressed_hints");
+        BLS.PointG1 memory sig = BLS.g1Unmarshal(sigBytes);
+        BLS.PointG1 memory m = BLS.hashToPointFromHints(bytes(tc.dst), msg, t);
+        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
+        vm.stopSnapshotGas();
+        assert(pairingSuccess && callSuccess);
+    }
+
     function test_snapshot_verify_uncompressed() public {
         // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
         TestCase memory tc = fixture_tc()[4];
