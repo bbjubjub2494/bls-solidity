@@ -1,6 +1,6 @@
 pragma solidity ^0.8;
 
-import {Test} from "forge-std-1.10.0/src/Test.sol";
+import {Test, console2} from "forge-std-1.10.0/src/Test.sol";
 
 import {BLS} from "src/libraries/BLS.sol";
 
@@ -80,6 +80,19 @@ contract BLSTest is Test, Common {
         assert(callSuccess);
     }
 
+    function table_compressed(TestCase memory tc) public {
+        if (!eq(tc.scheme, "BN254")) {
+            return; // Skip row but not whole table
+        }
+        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
+        BLS.PointG1 memory sig_expected = BLS.g1Unmarshal(parseHex(tc.sig));
+
+        BLS.PointG1 memory sig = BLS.g1UnmarshalCompressed(parseHex(tc.sig_compressed));
+
+	assertEq(sig.x, sig_expected.x);
+	assertEq(sig.y, sig_expected.y);
+    }
+
     function test_snapshot_verify_uncompressed_hints() public {
         // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
         TestCase memory tc = fixture_tc()[4];
@@ -110,6 +123,21 @@ contract BLSTest is Test, Common {
 
         vm.startSnapshotGas("BLS", "verify_uncompressed");
         BLS.PointG1 memory sig = BLS.g1Unmarshal(sigBytes);
+        BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), msg);
+        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
+        vm.stopSnapshotGas();
+        assert(pairingSuccess && callSuccess);
+    }
+
+    function test_snapshot_verify_compressed() public {
+        // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
+        TestCase memory tc = fixture_tc()[4];
+        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
+        bytes memory sigBytes = parseHex(tc.sig_compressed);
+        bytes memory msg = parseHex(tc.message);
+
+        vm.startSnapshotGas("BLS", "verify_compressed");
+        BLS.PointG1 memory sig = BLS.g1UnmarshalCompressed(sigBytes);
         BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), msg);
         (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
         vm.stopSnapshotGas();
