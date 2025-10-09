@@ -4,9 +4,50 @@ import {Test, console2} from "forge-std-1.10.0/src/Test.sol";
 
 import {BLS} from "src/libraries/BLS.sol";
 
-import {Common} from "test/Common.sol";
+import {Utils, Common} from "test/Common.sol";
 
-contract BLSTest is Test, Common {
+contract BLSTest is Test {
+    struct TestCase {
+	BLS.PointG2 pk;
+	bytes sig;
+	bytes sig_compressed;
+	bytes message;
+	string dst;
+	BLS.PointG1 m_expected;
+	uint[] hints;
+    }
+
+    function fixture_tc() public view returns (TestCase[] memory filtered) {
+	Common.TestCase[] memory all = Utils.loadTestCases();
+	uint256 count = 0;
+	for (uint256 i = 0; i < all.length; i++) {
+	    if (Utils.eq(all[i].scheme, "BN254")) {
+		count++;
+	    }
+	}
+	filtered = new TestCase[](count);
+	uint256 j = 0;
+	for (uint256 i = 0; i < all.length; i++) {
+	    if (Utils.eq(all[i].scheme, "BN254")) {
+		    uint256[] memory hints = new uint256[](all[i].hints.length);
+		    for (uint256 k = 0; k < all[i].hints.length; k++) {
+			    hints[k] = BLS.fqUnmarshal(Utils.parseHex(all[i].hints[k]));
+		    }
+		filtered[j] = TestCase({
+			pk: BLS.g2Unmarshal(Utils.parseHex(all[i].pk)),
+			sig: Utils.parseHex(all[i].sig),
+			sig_compressed: Utils.parseHex(all[i].sig_compressed),
+			message: Utils.parseHex(all[i].message),
+			dst: all[i].dst,
+			m_expected: BLS.g1Unmarshal(Utils.parseHex(all[i].m_expected)),
+			hints: hints
+		});
+		j++;
+	    }
+	}
+	return filtered;
+    }
+
     function test_sample_signature() public {
         BLS.PointG2 memory pk = BLS.PointG2(
             [
@@ -30,48 +71,32 @@ contract BLSTest is Test, Common {
     }
 
     function table_marshal_unmarshal(TestCase memory tc) public pure {
-        if (!eq(tc.scheme, "BN254")) {
-            return; // Skip row but not whole table
-        }
-        bytes memory g1data = parseHex(tc.sig);
+        bytes memory g1data = tc.sig;
         assertEq(BLS.g1Marshal(BLS.g1Unmarshal(g1data)), g1data);
 
-        bytes memory g2data = parseHex(tc.pk);
+        bytes memory g2data = BLS.g2Marshal(tc.pk);
         assertEq(BLS.g2Marshal(BLS.g2Unmarshal(g2data)), g2data);
     }
 
     function table_verify(TestCase memory tc) public {
-        if (!eq(tc.scheme, "BN254")) {
-            return; // Skip row but not whole table
-        }
-        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
-        BLS.PointG1 memory sig = BLS.g1Unmarshal(parseHex(tc.sig));
-        BLS.PointG1 memory m_expected = BLS.g1Unmarshal(parseHex(tc.m_expected));
+        BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), tc.message);
+        BLS.PointG1 memory sig = BLS.g1Unmarshal(tc.sig);
+        assert(m.x == tc.m_expected.x);
+        assert(m.y == tc.m_expected.y);
 
-        BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), parseHex(tc.message));
-        assert(m.x == m_expected.x);
-        assert(m.y == m_expected.y);
-
-        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
+        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, tc.pk, m);
         assert(pairingSuccess);
         assert(callSuccess);
     }
 
     function table_hints(TestCase memory tc) public {
-        if (!eq(tc.scheme, "BN254")) {
-            return; // Skip row but not whole table
-        }
-        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
-        BLS.PointG1 memory sig = BLS.g1Unmarshal(parseHex(tc.sig));
-        BLS.PointG1 memory m_expected = BLS.g1Unmarshal(parseHex(tc.m_expected));
+        BLS.PointG2 memory pk = tc.pk;
+        BLS.PointG1 memory sig = BLS.g1Unmarshal(tc.sig);
+        BLS.PointG1 memory m_expected = tc.m_expected;
 
-        uint256[] memory hints = new uint256[](tc.hints.length);
-        for (uint256 i = 0; i < tc.hints.length; i++) {
-            hints[i] = BLS.fqUnmarshal(parseHex(tc.hints[i]));
-        }
-        BLS.TranscriptIterator memory t = BLS.TranscriptIterator({hints: hints, position: 0});
+        BLS.TranscriptIterator memory t = BLS.TranscriptIterator({hints: tc.hints, position: 0});
 
-        BLS.PointG1 memory m = BLS.hashToPointFromHints(bytes(tc.dst), parseHex(tc.message), t);
+        BLS.PointG1 memory m = BLS.hashToPointFromHints(bytes(tc.dst), tc.message, t);
         assert(m.x == m_expected.x);
         assert(m.y == m_expected.y);
 
@@ -81,65 +106,42 @@ contract BLSTest is Test, Common {
     }
 
     function table_compressed(TestCase memory tc) public {
-        if (!eq(tc.scheme, "BN254")) {
-            return; // Skip row but not whole table
-        }
-        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
-        BLS.PointG1 memory sig_expected = BLS.g1Unmarshal(parseHex(tc.sig));
-
-        BLS.PointG1 memory sig = BLS.g1UnmarshalCompressed(parseHex(tc.sig_compressed));
+        BLS.PointG1 memory sig = BLS.g1UnmarshalCompressed(tc.sig_compressed);
+        BLS.PointG1 memory sig_expected = BLS.g1Unmarshal(tc.sig);
 
 	assertEq(sig.x, sig_expected.x);
 	assertEq(sig.y, sig_expected.y);
     }
 
-    function test_snapshot_verify_uncompressed_hints() public {
-        // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
-        TestCase memory tc = fixture_tc()[4];
-        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
-        bytes memory sigBytes = parseHex(tc.sig);
-        bytes memory msg = parseHex(tc.message);
+    function table_snapshot_verify_uncompressed_hints(TestCase memory tc) public {
+        bytes memory sigBytes = tc.sig;
 
-        uint256[] memory hints = new uint256[](tc.hints.length);
-        for (uint256 i = 0; i < tc.hints.length; i++) {
-            hints[i] = BLS.fqUnmarshal(parseHex(tc.hints[i]));
-        }
-        BLS.TranscriptIterator memory t = BLS.TranscriptIterator({hints: hints, position: 0});
+        BLS.TranscriptIterator memory t = BLS.TranscriptIterator({hints: tc.hints, position: 0});
 
         vm.startSnapshotGas("BLS", "verify_uncompressed_hints");
         BLS.PointG1 memory sig = BLS.g1Unmarshal(sigBytes);
-        BLS.PointG1 memory m = BLS.hashToPointFromHints(bytes(tc.dst), msg, t);
-        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
+        BLS.PointG1 memory m = BLS.hashToPointFromHints(bytes(tc.dst), tc.message, t);
+        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, tc.pk, m);
         vm.stopSnapshotGas();
         assert(pairingSuccess && callSuccess);
     }
 
-    function test_snapshot_verify_uncompressed() public {
-        // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
-        TestCase memory tc = fixture_tc()[4];
-        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
-        bytes memory sigBytes = parseHex(tc.sig);
-        bytes memory msg = parseHex(tc.message);
-
+    function table_snapshot_verify_uncompressed(TestCase memory tc) public {
         vm.startSnapshotGas("BLS", "verify_uncompressed");
-        BLS.PointG1 memory sig = BLS.g1Unmarshal(sigBytes);
-        BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), msg);
-        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
+        BLS.PointG1 memory sig = BLS.g1Unmarshal(tc.sig);
+        BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), tc.message);
+        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, tc.pk, m);
         vm.stopSnapshotGas();
         assert(pairingSuccess && callSuccess);
     }
 
-    function test_snapshot_verify_compressed() public {
-        // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
-        TestCase memory tc = fixture_tc()[4];
-        BLS.PointG2 memory pk = BLS.g2Unmarshal(parseHex(tc.pk));
-        bytes memory sigBytes = parseHex(tc.sig_compressed);
-        bytes memory msg = parseHex(tc.message);
+    function table_snapshot_verify_compressed(TestCase memory tc) public {
+        bytes memory sigBytes = tc.sig_compressed;
 
         vm.startSnapshotGas("BLS", "verify_compressed");
         BLS.PointG1 memory sig = BLS.g1UnmarshalCompressed(sigBytes);
-        BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), msg);
-        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, pk, m);
+        BLS.PointG1 memory m = BLS.hashToPoint(bytes(tc.dst), tc.message);
+        (bool pairingSuccess, bool callSuccess) = BLS.verifySingle(sig, tc.pk, m);
         vm.stopSnapshotGas();
         assert(pairingSuccess && callSuccess);
     }

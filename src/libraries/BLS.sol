@@ -393,7 +393,7 @@ library BLS {
         return PointG1(uint256(x), uint256(y));
     }
 
-    function g1UnmarshalCompressed(bytes memory m) internal view returns (PointG1 memory) {
+    function g1UnmarshalCompressed(bytes memory m) internal pure returns (PointG1 memory) {
         require(m.length == 32, "Invalid G1 bytes length");
 
         uint256 x;
@@ -753,7 +753,7 @@ library BLS {
     /// @notice Map field element to E using SvdW
     /// @param u Field element to map
     /// @return p Point on curve
-    function mapToPointFromHints(uint256 u, TranscriptIterator memory t) internal view returns (uint256[2] memory p) {
+    function mapToPointFromHints(uint256 u, TranscriptIterator memory t) internal pure returns (uint256[2] memory p) {
         if (u >= N) revert InvalidFieldElement(u);
 
         uint256 tv1 = mulmod(mulmod(u, u, N), C1, N);

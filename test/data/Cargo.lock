@@ -533,6 +533,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-rs"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cde4c9ce1d8e6e94b4c0ee341c000d79335b7c55b7d7979b36ca803c85c091ba"
+dependencies = [
+ "unicode-ident",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -717,6 +726,28 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "data"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ark-bls12-381",
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "ark-poly",
+ "build-rs",
+ "digest 0.10.7",
+ "hash_to_curve",
+ "hex",
+ "hinting",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sha3",
+ "utils",
 ]
 
 [[package]]
@@ -1201,27 +1232,6 @@ name = "log"
 version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
-
-[[package]]
-name = "make_test_signature"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ark-bls12-381",
- "ark-bn254",
- "ark-ec",
- "ark-ff",
- "ark-poly",
- "digest 0.10.7",
- "hash_to_curve",
- "hex",
- "hinting",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sha3",
- "utils",
-]
 
 [[package]]
 name = "memchr"

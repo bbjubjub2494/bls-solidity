@@ -2,9 +2,9 @@ alias t := test
 alias fmt := format
 
 test *args:
-	@just test/data/generate
 	@just test/bls_ffi/build
-	forge t {{args}}
+	cd test/data && cargo build
+	TEST_DATA_DIR=$(test/data/target/debug/print_data_dir) forge t {{args}}
 
 deploy-quicknet *args:
 	forge script {{args}} script/DeployQuicknetRegistry.s.sol
@@ -32,5 +32,4 @@ lint:
 
 format:
 	forge fmt
-	just test/data/format
 	just test/bls_ffi/format

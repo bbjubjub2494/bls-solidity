@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     let bn254_sk = ark_bn254::Fr::new(BigInt::new([0, 0, 0, 0xdeadbeef]));
 
     serde_json::to_writer_pretty(
-        File::create("testcases.json")?,
+        File::create(build_rs::input::out_dir().join("testcases.json"))?,
         &[
             bls12_test_case(msg, bls12_sk),
             bn254_test_case(msg, bn254_sk),
