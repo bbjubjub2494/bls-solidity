@@ -406,7 +406,6 @@ library BLS {
             x := mload(add(m, 0x20))
             flags := shr(254, x)
             x := and(x, 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
-	                        
         }
 
         if (flags == 0) {
@@ -419,12 +418,12 @@ library BLS {
             larger = true;
         }
 
-	uint y2 = addmod(mulmod(mulmod(x, x, N), x, N), 3, N); // y^2 = x^3 + 3
-	bool ok;
-	(y, ok) = sqrt(y2);
-	assert(ok);
+        uint256 y2 = addmod(mulmod(mulmod(x, x, N), x, N), 3, N); // y^2 = x^3 + 3
+        bool ok;
+        (y, ok) = sqrt(y2);
+        assert(ok);
 
-        uint alt_y = N - y;
+        uint256 alt_y = N - y;
 
         bool do_swap = y < alt_y;
         do_swap = larger == do_swap;

@@ -7,10 +7,11 @@ import {BLS2} from "src/libraries/BLS2.sol";
 import {Common} from "test/Common.sol";
 
 contract BLS2Test is Test, Common {
-    function table_marshal_unmarshal(TestCase memory tc) public pure {
-        if (!eq(tc.scheme, "BLS12381")) {
-            return; // Skip row but not whole table
-        }
+    function fixture_tc() public view returns (TestCaseJson[] memory filtered) {
+        return loadTestCases("bls12_testcases.json");
+    }
+
+    function table_marshal_unmarshal(TestCaseJson memory tc) public pure {
         bytes memory g1data = parseHex(tc.sig);
         assertEq(BLS2.g1Marshal(BLS2.g1Unmarshal(g1data)), g1data);
 
@@ -18,10 +19,7 @@ contract BLS2Test is Test, Common {
         assertEq(BLS2.g2Marshal(BLS2.g2Unmarshal(g2data)), g2data);
     }
 
-    function table_verify(TestCase memory tc) public {
-        if (!eq(tc.scheme, "BLS12381")) {
-            return; // Skip row but not whole table
-        }
+    function table_verify(TestCaseJson memory tc) public {
         BLS2.PointG2 memory pk = BLS2.g2Unmarshal(parseHex(tc.pk));
         BLS2.PointG1 memory sig = BLS2.g1Unmarshal(parseHex(tc.sig));
         BLS2.PointG1 memory m_expected = BLS2.g1Unmarshal(parseHex(tc.m_expected));
@@ -37,11 +35,7 @@ contract BLS2Test is Test, Common {
         assert(callSuccess);
     }
 
-    function table_unmarshal_compressed(TestCase memory tc) public {
-        if (!eq(tc.scheme, "BLS12381")) {
-            return; // Skip row but not whole table
-        }
-
+    function table_unmarshal_compressed(TestCaseJson memory tc) public {
         BLS2.PointG1 memory expected = BLS2.g1Unmarshal(parseHex(tc.sig));
         BLS2.PointG1 memory actual = BLS2.g1UnmarshalCompressed(parseHex(tc.sig_compressed));
 
@@ -53,7 +47,7 @@ contract BLS2Test is Test, Common {
 
     function test_snapshot_verify_compressed() public {
         // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
-        TestCase memory tc = fixture_tc()[3];
+        TestCaseJson memory tc = fixture_tc()[3];
         BLS2.PointG2 memory pk = BLS2.g2Unmarshal(parseHex(tc.pk));
         bytes memory sigCompressedBytes = parseHex(tc.sig_compressed);
         bytes memory msg = parseHex(tc.message);
@@ -68,7 +62,7 @@ contract BLS2Test is Test, Common {
 
     function test_snapshot_verify_uncompressed() public {
         // snapshots do not work well in table tests as of Foundry 1.3.1, workaround here.
-        TestCase memory tc = fixture_tc()[3];
+        TestCaseJson memory tc = fixture_tc()[3];
         BLS2.PointG2 memory pk = BLS2.g2Unmarshal(parseHex(tc.pk));
         bytes memory sigBytes = parseHex(tc.sig);
         bytes memory msg = parseHex(tc.message);

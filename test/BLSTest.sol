@@ -6,46 +6,35 @@ import {BLS} from "src/libraries/BLS.sol";
 
 import {Utils, Common} from "test/Common.sol";
 
-contract BLSTest is Test {
+contract BLSTest is Test, Common {
     struct TestCase {
-	BLS.PointG2 pk;
-	bytes sig;
-	bytes sig_compressed;
-	bytes message;
-	string dst;
-	BLS.PointG1 m_expected;
-	uint[] hints;
+        BLS.PointG2 pk;
+        bytes sig;
+        bytes sig_compressed;
+        bytes message;
+        string dst;
+        BLS.PointG1 m_expected;
+        uint256[] hints;
     }
 
-    function fixture_tc() public view returns (TestCase[] memory filtered) {
-	Common.TestCase[] memory all = Utils.loadTestCases();
-	uint256 count = 0;
-	for (uint256 i = 0; i < all.length; i++) {
-	    if (Utils.eq(all[i].scheme, "BN254")) {
-		count++;
-	    }
-	}
-	filtered = new TestCase[](count);
-	uint256 j = 0;
-	for (uint256 i = 0; i < all.length; i++) {
-	    if (Utils.eq(all[i].scheme, "BN254")) {
-		    uint256[] memory hints = new uint256[](all[i].hints.length);
-		    for (uint256 k = 0; k < all[i].hints.length; k++) {
-			    hints[k] = BLS.fqUnmarshal(Utils.parseHex(all[i].hints[k]));
-		    }
-		filtered[j] = TestCase({
-			pk: BLS.g2Unmarshal(Utils.parseHex(all[i].pk)),
-			sig: Utils.parseHex(all[i].sig),
-			sig_compressed: Utils.parseHex(all[i].sig_compressed),
-			message: Utils.parseHex(all[i].message),
-			dst: all[i].dst,
-			m_expected: BLS.g1Unmarshal(Utils.parseHex(all[i].m_expected)),
-			hints: hints
-		});
-		j++;
-	    }
-	}
-	return filtered;
+    function fixture_tc() public view returns (TestCase[] memory testcases) {
+        TestCaseJson[] memory json = loadTestCases("bn254_testcases.json");
+        testcases = new TestCase[](json.length);
+        for (uint256 i = 0; i < json.length; i++) {
+            uint256[] memory hints = new uint256[](json[i].hints.length);
+            for (uint256 j = 0; j < json[i].hints.length; j++) {
+                hints[j] = BLS.fqUnmarshal(Utils.parseHex(json[i].hints[j]));
+            }
+            testcases[i] = TestCase({
+                pk: BLS.g2Unmarshal(Utils.parseHex(json[i].pk)),
+                sig: Utils.parseHex(json[i].sig),
+                sig_compressed: Utils.parseHex(json[i].sig_compressed),
+                message: Utils.parseHex(json[i].message),
+                dst: json[i].dst,
+                m_expected: BLS.g1Unmarshal(Utils.parseHex(json[i].m_expected)),
+                hints: hints
+            });
+        }
     }
 
     function test_sample_signature() public {
@@ -109,8 +98,8 @@ contract BLSTest is Test {
         BLS.PointG1 memory sig = BLS.g1UnmarshalCompressed(tc.sig_compressed);
         BLS.PointG1 memory sig_expected = BLS.g1Unmarshal(tc.sig);
 
-	assertEq(sig.x, sig_expected.x);
-	assertEq(sig.y, sig_expected.y);
+        assertEq(sig.x, sig_expected.x);
+        assertEq(sig.y, sig_expected.y);
     }
 
     function table_snapshot_verify_uncompressed_hints(TestCase memory tc) public {
