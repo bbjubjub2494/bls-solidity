@@ -3,8 +3,7 @@ alias fmt := format
 
 test *args:
 	@just test/bls_ffi/build
-	cd test/data && cargo build
-	TEST_DATA_DIR=$(test/data/target/debug/print_data_dir) forge t {{args}}
+	TEST_DATA_DIR=$(cargo run --bin print_data_dir) forge t {{args}}
 
 deploy-quicknet *args:
 	forge script {{args}} script/DeployQuicknetRegistry.s.sol
