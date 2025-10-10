@@ -3,6 +3,7 @@ members = [
     "bench",
     "test/data",
     "test/bls_ffi",
+    "out/bindings",
 ]
 resolver = "2"
 
