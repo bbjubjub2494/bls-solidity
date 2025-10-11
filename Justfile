@@ -6,7 +6,7 @@ test *args:
 	TEST_DATA_DIR=$(cargo run --bin print_data_dir) forge t {{args}}
 
 bench:
-	forge bind --select EvmnetVerifier
+	forge bind --overwrite --select EvmnetVerifier
 	cargo run --bin bench
 
 deploy-quicknet *args:
