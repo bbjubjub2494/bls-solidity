@@ -36,4 +36,15 @@ contract EvmnetVerifier {
         );
         require(callSuccess && pairingSuccess, "Invalid signature");
     }
+
+    function verifyWithHints(bytes memory signature, uint64 roundNumber, uint256[] memory hints) external view {
+        BLS.TranscriptIterator memory t = BLS.TranscriptIterator({hints: hints, position: 0});
+
+        (bool callSuccess, bool pairingSuccess) = BLS.verifySingle(
+            BLS.g1Unmarshal(signature),
+            PUBLIC_KEY(),
+            BLS.hashToPointFromHints(bytes(DST), abi.encodePacked(keccak256(abi.encodePacked(roundNumber))), t)
+        );
+        require(callSuccess && pairingSuccess, "Invalid signature");
+    }
 }

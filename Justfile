@@ -5,6 +5,10 @@ test *args:
 	@just test/bls_ffi/build
 	TEST_DATA_DIR=$(cargo run --bin print_data_dir) forge t {{args}}
 
+bench:
+	forge bind --select EvmnetVerifier
+	cargo run --bin bench
+
 deploy-quicknet *args:
 	forge script {{args}} script/DeployQuicknetRegistry.s.sol
 
