@@ -14,9 +14,9 @@ ark-bn254.workspace = true
 ark-ec.workspace = true
 ark-ff.workspace = true
 
+alloy.workspace = true
+alloy-evm.workspace = true
+
 utils.workspace = true
-alloy = { version = "1.0.38", features = ["node-bindings", "full"] }
 
 foundry-contracts = { path = "../out/bindings" }
-tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
-alloy-evm = "0.21.2"

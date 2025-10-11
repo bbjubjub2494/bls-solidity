@@ -8,10 +8,16 @@ use ark_bn254::Bn254;
 use ark_ec::{AffineRepr, pairing::Pairing};
 use ark_ff::Zero;
 
-use alloy::{
-        providers::{ext::AnvilApi, Provider, ProviderBuilder},
-            node_bindings::Anvil,
+use alloy_evm::{
+    eth::EthEvmFactory,
+    env::EvmEnv,
+    Evm,
+    EvmFactory,
+revm::database::{EmptyDBTyped, InMemoryDB},
+revm::context::TxEnv,
 };
+
+use alloy::sol_types::SolCall;
 
 use digest::Digest;
 
@@ -42,31 +48,8 @@ fn hex_deser_uncompressed<T: PointDeserializeUncompressed>(s: &str) -> T {
     T::deser_uncompressed(&bytes[..]).unwrap()
 }
 
-/*
-use revm::{
-    MainnetEvm,
-    handler::instructions::EthInstructions,
-};
 
-pub fn create_evm_instance() -> MainnetEvm {
-    MainnetEvm::new(
-}
-*/
-
-use alloy_evm::{
-    eth::{EthEvm, EthEvmFactory},
-    env::EvmEnv,
-    Evm,
-    EvmFactory,
-revm::database::{EmptyDBTyped, InMemoryDB},
-revm::context::TxEnv,
-};
-
-use alloy::sol_types::SolCall;
-
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let db = InMemoryDB::new(EmptyDBTyped::new());
     let mut evm = EthEvmFactory::default().create_evm(db, EvmEnv::default());
 
