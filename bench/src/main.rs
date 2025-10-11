@@ -42,12 +42,39 @@ fn hex_deser_uncompressed<T: PointDeserializeUncompressed>(s: &str) -> T {
     T::deser_uncompressed(&bytes[..]).unwrap()
 }
 
+/*
+use revm::{
+    MainnetEvm,
+    handler::instructions::EthInstructions,
+};
+
+pub fn create_evm_instance() -> MainnetEvm {
+    MainnetEvm::new(
+}
+*/
+
+use alloy_evm::{
+    eth::{EthEvm, EthEvmFactory},
+    env::EvmEnv,
+    Evm,
+    EvmFactory,
+revm::database::{EmptyDBTyped, InMemoryDB},
+revm::context::TxEnv,
+};
+
+use alloy::sol_types::SolCall;
+
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let anvil = Anvil::new().spawn();
-    let provider = ProviderBuilder::new().connect_anvil_with_wallet();
+    let db = InMemoryDB::new(EmptyDBTyped::new());
+    let mut evm = EthEvmFactory::default().create_evm(db, EvmEnv::default());
 
-    let contract = EvmnetVerifier::deploy(&provider).await?;
+    // deploy the contract
+    let tx = TxEnv::builder().create().data(EvmnetVerifier::BYTECODE.clone()).build().unwrap();
+    let r = evm.transact_commit(tx)?;
+    let contract_address = r.created_address().unwrap();
+
 
     let dst = format!("BLS_SIG_{DST}_NUL_");
 
@@ -56,20 +83,29 @@ async fn main() -> anyhow::Result<()> {
     let mut data = BufReader::new(File::open(PathBuf::from_str(
         "bench/data/evmnet_1000_rounds.bin",
     )?)?);
-    for r in 1u64..=1000 {
+    for rn in 1u64..=1000 {
         let mut sig = [0u8; 32];
         data.read_exact(&mut sig)?;
         let p = hex_deser_uncompressed(pk);
         let s = ark_bn254::G1Affine::deser_compressed(&sig)?;
-        let msg = &sha3::Keccak256::digest(r.to_be_bytes());
+        let msg = &sha3::Keccak256::digest(rn.to_be_bytes());
         let m = Bn254::hash_to_g1_custom::<sha3::Keccak256>(msg, dst.as_bytes());
 
         assert!(
             Bn254::multi_pairing(&[m, s.into()], &[p, -ark_bn254::G2Affine::generator()]).is_zero()
         );
 
-        let builder = contract.verifyCompressed(sig.into(), r);
-    let r = builder.call_raw().await?;
+        let calldata =   EvmnetVerifier::verifyCompressedCall::from((sig.into(), rn)).abi_encode();
+        let tx = TxEnv::builder().to(contract_address).data(calldata.into()).nonce(1).build().unwrap();
+        let r = evm.transact(tx)?;
+        println!("result: {r:?}");
+
+        let calldata =   EvmnetVerifier::verifyUncompressedCall::from((s.ser_uncompressed()?.into(), rn)).abi_encode();
+        let tx = TxEnv::builder().to(contract_address).data(calldata.into()).nonce(1).build().unwrap();
+        let r = evm.transact(tx)?;
+        println!("result: {r:?}");
+
+        break; // TODO: remove
     }
 
     Ok(())
