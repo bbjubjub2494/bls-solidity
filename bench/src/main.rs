@@ -30,9 +30,10 @@ use foundry_contracts::evmnet_verifier::EvmnetVerifier;
 
 static DST: &[u8] = b"BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_";
 
-struct DataPoint {
-    exec_gas: u64,
-    data_gas: u64,
+macro_rules! write_row {
+    ($f:expr, $($col:expr),+) => {
+        writeln!($f, "{:20}\t{:20}\t{:20}", $($col),+)
+    };
 }
 
 fn main() -> anyhow::Result<()> {
@@ -51,26 +52,30 @@ fn main() -> anyhow::Result<()> {
     let mut data = BufReader::new(File::open(PathBuf::from_str(
         "bench/data/evmnet_1000_rounds.bin",
     )?)?);
-    let mut compressed_data = Vec::<DataPoint>::new();
-    let mut uncompressed_data = Vec::<DataPoint>::new();
-    let mut hints_data = Vec::<DataPoint>::new();
+
+    let mut f = File::create("results/evmnet_verify_1000_evm.dat")?;
+    write_row!(f, "exec_gas", "data_gas", "algorithm")?;
+
     for rn in 1u64..=1000 {
         let mut sig = [0u8; 32];
         data.read_exact(&mut sig)?;
         let s = ark_bn254::G1Affine::deser_compressed(&sig)?;
 
-        compressed_data.push(measure(
+        let (exec_gas, data_gas) = measure(
             &mut evm,
             contract_address,
             EvmnetVerifier::verifyCompressedCall::from((sig.into(), rn)).abi_encode(),
-        )?);
+        )?;
 
-        uncompressed_data.push(measure(
+        write_row!(f, exec_gas, data_gas, "compressed")?;
+
+        let (exec_gas, data_gas) = measure(
             &mut evm,
             contract_address,
             EvmnetVerifier::verifyUncompressedCall::from((s.ser_uncompressed()?.into(), rn))
                 .abi_encode(),
-        )?);
+        )?;
+        write_row!(f, exec_gas, data_gas, "uncompressed")?;
 
         let msg = &Keccak256::digest(rn.to_be_bytes());
         let (_, hints) = hash_to_curve::hash_to_g1_custom_with_hints::<Keccak256>(msg, DST);
@@ -79,29 +84,26 @@ fn main() -> anyhow::Result<()> {
             .map(|p| U256::from_be_slice(&p.into_bigint().to_bytes_be()))
             .collect();
 
-        hints_data.push(measure(
+        let (exec_gas, data_gas) = measure(
             &mut evm,
             contract_address,
             EvmnetVerifier::verifyWithHintsCall::from((s.ser_uncompressed()?.into(), rn, hints))
                 .abi_encode(),
-        )?);
-    }
+        )?;
 
-    println!("Compressed:");
-    summarize(&compressed_data);
-    println!("Uncompressed:");
-    summarize(&uncompressed_data);
-    println!("With Hints:");
-    summarize(&hints_data);
+        write_row!(f, exec_gas, data_gas, "with_hints")?;
+    }
 
     Ok(())
 }
+
+const INTRINSIC_GAS: u64 = 21000;
 
 fn measure<DB, I>(
     evm: &mut <EthEvmFactory as EvmFactory>::Evm<DB, I>,
     contract_address: Address,
     calldata: Vec<u8>,
-) -> anyhow::Result<DataPoint>
+) -> anyhow::Result<(u64, u64)>
 where
     DB: Database + std::fmt::Debug,
     I: Inspector<alloy_evm::eth::EthEvmContext<DB>> + Default,
@@ -118,41 +120,11 @@ where
         .build()
         .unwrap();
     let ExecutionResult::Success {
-        gas_used: exec_gas, ..
+        gas_used, ..
     } = evm.transact(tx)?.result
     else {
         panic!("unexpected result");
     };
-    Ok(DataPoint { exec_gas, data_gas })
-}
-
-fn compute_stats<I>(data: I) -> (f64, f64)
-where
-    I: Iterator,
-    I::Item: Into<f64>,
-{
-    let mut count = 0f64;
-    let mut sum = 0f64;
-    let mut sum_sq = 0f64;
-    for v in data {
-        let v = v.into();
-        count += 1f64;
-        sum += v;
-        sum_sq += v * v;
-    }
-    let mean = sum / count;
-    let variance = (sum_sq / count) - (mean * mean);
-
-    (mean, variance.sqrt())
-}
-
-fn summarize(data: &[DataPoint]) {
-    let (exec_mean, exec_std) = compute_stats(data.iter().map(|d| d.exec_gas as f64));
-    let (data_mean, data_std) = compute_stats(data.iter().map(|d| d.data_gas as f64));
-    let (total_mean, total_std) =
-        compute_stats(data.iter().map(|d| (d.exec_gas + d.data_gas) as f64));
-
-    println!("Exec Gas: {:.2} ± {:.2}", exec_mean, exec_std);
-    println!("Data Gas: {:.2} ± {:.2}", data_mean, data_std);
-    println!("Total Gas: {:.2} ± {:.2}", total_mean, total_std);
+    let exec_gas = gas_used.checked_sub(INTRINSIC_GAS + data_gas).expect("unexpected gas");
+    Ok((exec_gas, data_gas))
 }
