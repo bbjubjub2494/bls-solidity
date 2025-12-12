@@ -1,0 +1,7 @@
+fetch: fetch-quicknet fetch-evmnet
+
+fetch-evmnet:
+	exit TODO
+
+fetch-quicknet:
+	cargo run --bin fetch-quicknet-1000rounds data/quicknet_1000_rounds.bin

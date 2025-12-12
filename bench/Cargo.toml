@@ -11,6 +11,7 @@ alloy.workspace = true
 alloy-evm.workspace = true
 
 ark-bn254.workspace = true
+ark-bls12-381.workspace = true
 ark-ff.workspace = true
 
 sha3.workspace = true
@@ -19,3 +20,6 @@ hash_to_curve.workspace = true
 utils.workspace = true
 
 foundry-contracts = { path = "../out/bindings" }
+reqwest = { version = "0.12.24", features = ["blocking"] }
+serde_json.workspace = true
+serde.workspace = true

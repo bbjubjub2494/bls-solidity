@@ -26,9 +26,10 @@ use std::io::{BufReader, prelude::*};
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use foundry_contracts::evmnet_verifier::EvmnetVerifier;
-
-static DST: &[u8] = b"BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_";
+use foundry_contracts::{
+    evmnet_verifier::EvmnetVerifier,
+    quicknet_verifier::QuicknetVerifier,
+};
 
 macro_rules! write_row {
     ($f:expr, $($col:expr),+) => {
@@ -43,28 +44,28 @@ fn main() -> anyhow::Result<()> {
     // deploy the contract
     let tx = TxEnv::builder()
         .create()
-        .data(EvmnetVerifier::BYTECODE.clone())
+        .data(QuicknetVerifier::BYTECODE.clone())
         .build()
         .unwrap();
     let r = evm.transact_commit(tx)?;
     let contract_address = r.created_address().unwrap();
 
     let mut data = BufReader::new(File::open(PathBuf::from_str(
-        "bench/data/evmnet_1000_rounds.bin",
+        "bench/data/quicknet_1000_rounds.bin",
     )?)?);
 
-    let mut f = File::create("results/evmnet_verify_1000_evm.dat")?;
+    let mut f = File::create("results/quicknet_verify_1000_evm.dat")?;
     write_row!(f, "exec_gas", "data_gas", "algorithm")?;
 
     for rn in 1u64..=1000 {
-        let mut sig = [0u8; 32];
+        let mut sig = [0u8; 48];
         data.read_exact(&mut sig)?;
-        let s = ark_bn254::G1Affine::deser_compressed(&sig)?;
+        let s = ark_bls12_381::G1Affine::deser_compressed(&sig)?;
 
         let (exec_gas, data_gas) = measure(
             &mut evm,
             contract_address,
-            EvmnetVerifier::verifyCompressedCall::from((sig.into(), rn)).abi_encode(),
+            QuicknetVerifier::verifyCompressedCall::from((sig.into(), rn)).abi_encode(),
         )?;
 
         write_row!(f, exec_gas, data_gas, "compressed")?;
@@ -72,26 +73,10 @@ fn main() -> anyhow::Result<()> {
         let (exec_gas, data_gas) = measure(
             &mut evm,
             contract_address,
-            EvmnetVerifier::verifyUncompressedCall::from((s.ser_uncompressed()?.into(), rn))
+            QuicknetVerifier::verifyUncompressedCall::from((s.ser_uncompressed()?.into(), rn))
                 .abi_encode(),
         )?;
         write_row!(f, exec_gas, data_gas, "uncompressed")?;
-
-        let msg = &Keccak256::digest(rn.to_be_bytes());
-        let (_, hints) = hash_to_curve::hash_to_g1_custom_with_hints::<Keccak256>(msg, DST);
-        let hints: Vec<U256> = hints
-            .into_iter()
-            .map(|p| U256::from_be_slice(&p.into_bigint().to_bytes_be()))
-            .collect();
-
-        let (exec_gas, data_gas) = measure(
-            &mut evm,
-            contract_address,
-            EvmnetVerifier::verifyWithHintsCall::from((s.ser_uncompressed()?.into(), rn, hints))
-                .abi_encode(),
-        )?;
-
-        write_row!(f, exec_gas, data_gas, "with_hints")?;
     }
 
     Ok(())
