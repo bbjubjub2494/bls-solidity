@@ -19,6 +19,15 @@ contract EvmnetVerifier {
         );
     }
 
+    function verifyCompressed(bytes memory signature, uint64 roundNumber) external view {
+        (bool callSuccess, bool pairingSuccess) = BLS.verifySingle(
+            BLS.g1UnmarshalCompressed(signature),
+            PUBLIC_KEY(),
+            BLS.hashToPoint(bytes(DST), abi.encodePacked(keccak256(abi.encodePacked(roundNumber))))
+        );
+        require(callSuccess && pairingSuccess, "Invalid signature");
+    }
+
     function verifyUncompressed(bytes memory signature, uint64 roundNumber) external view {
         (bool callSuccess, bool pairingSuccess) = BLS.verifySingle(
             BLS.g1Unmarshal(signature),
