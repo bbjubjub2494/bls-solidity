@@ -6,6 +6,9 @@ test *args:
 	@just test/bls_ffi/build
 	forge t {{args}}
 
+generate-bindings:
+	forge bind --overwrite --select EvmnetVerifier --select QuicknetVerifier
+
 deploy-quicknet *args:
 	forge script {{args}} script/DeployQuicknetRegistry.s.sol
 
