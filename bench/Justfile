@@ -14,3 +14,4 @@ fetch-quicknet:
 
 format:
 	cargo fmt
+	uv format
