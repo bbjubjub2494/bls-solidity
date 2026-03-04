@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
-import {ModexpInverse, ModexpSqrt} from "./ModExp.sol";
+import {ModMath} from "./ModMath.sol";
 
 import "./Precompiles.sol";
 
@@ -414,14 +414,14 @@ library BLS {
     /// @notice sqrt(xx) mod N
     /// @param xx Input
     function sqrt(uint256 xx) internal pure returns (uint256 x, bool hasRoot) {
-        x = ModexpSqrt.run(xx);
+        x = ModMath.sqrt(xx);
         hasRoot = mulmod(x, x, N) == xx;
     }
 
     /// @notice a^{-1} mod N
     /// @param a Input
     function inverse(uint256 a) internal pure returns (uint256) {
-        return ModexpInverse.run(a);
+        return ModMath.inv(a);
     }
 
     /// @notice Hash a message to the field

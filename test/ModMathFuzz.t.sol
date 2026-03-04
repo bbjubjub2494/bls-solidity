@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std-1.10.0/src/Test.sol";
-import {ModexpInverse} from "src/libraries/ModExp.sol";
-import {ModexpSqrt} from "src/libraries/ModExp.sol";
+import {ModMath} from "src/libraries/ModMath.sol";
+import {ModMath} from "src/libraries/ModMath.sol";
 
 contract ModExpFuzz is Test {
     // BN254 field order
@@ -13,10 +13,10 @@ contract ModExpFuzz is Test {
         // Convert base to hex string
         string memory baseHex = vm.toString(abi.encodePacked(base));
 
-        // Call the Rust binary to compute ModexpInverse
+        // Call the Rust binary to compute ModMath
         string[] memory cmd = new string[](3);
         cmd[0] = "./target/release/bls_ffi";
-        cmd[1] = "ModexpInverse";
+        cmd[1] = "ModMath";
         cmd[2] = baseHex;
 
         bytes memory out = vm.ffi(cmd);
@@ -30,19 +30,19 @@ contract ModExpFuzz is Test {
         uint256 rustResult = _bytesToUint256(resultBytes);
 
         // Compute modexp in Solidity
-        uint256 solResult = ModexpInverse.run(base);
+        uint256 solResult = ModMath.inv(base);
 
-        assertEq(rustResult, solResult, "Rust ModexpInverse and Solidity ModexpInverse should match");
+        assertEq(rustResult, solResult, "Rust ModMath and Solidity ModMath should match");
     }
 
     function testFfiModExpSqrt(uint256 base) public {
         // Convert base to hex string
         string memory baseHex = vm.toString(abi.encodePacked(base));
 
-        // Call the Rust binary to compute ModexpSqrt
+        // Call the Rust binary to compute ModMath
         string[] memory cmd = new string[](3);
         cmd[0] = "./target/release/bls_ffi";
-        cmd[1] = "ModexpSqrt";
+        cmd[1] = "ModMath";
         cmd[2] = baseHex;
 
         bytes memory out = vm.ffi(cmd);
@@ -56,9 +56,9 @@ contract ModExpFuzz is Test {
         uint256 rustResult = _bytesToUint256(resultBytes);
 
         // Compute modexp in Solidity
-        uint256 solResult = ModexpSqrt.run(base);
+        uint256 solResult = ModMath.sqrt(base);
 
-        assertEq(rustResult, solResult, "Rust ModexpSqrt and Solidity ModexpSqrt should match");
+        assertEq(rustResult, solResult, "Rust ModMath and Solidity ModMath should match");
     }
 
     function _extractValue(string memory output, string memory key) internal pure returns (string memory) {
